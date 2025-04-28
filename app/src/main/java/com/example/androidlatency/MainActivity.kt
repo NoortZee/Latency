@@ -575,12 +575,5 @@ fun LatencyTestScreen(
             textAlign = TextAlign.Center,
             modifier = Modifier.padding(vertical = 8.dp)
         )
-        
-        Text(
-            text = "Значения 20-30 мс считаются очень хорошими для мобильных устройств. Теоретический минимум для устройств с 60 Гц дисплеем составляет около 16.7 мс (время одного кадра).",
-            fontSize = 12.sp,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.padding(bottom = 16.dp)
-        )
     }
 }
