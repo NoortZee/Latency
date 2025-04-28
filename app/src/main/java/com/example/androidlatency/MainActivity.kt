@@ -373,8 +373,11 @@ fun LatencyTestScreen(
     var performanceMultiplier by remember { mutableStateOf(systemPerformance.getPerformanceMultiplier()) }
     var powerModeDescription by remember { mutableStateOf(systemPerformance.getDescription()) }
     
-    // Состояние для анимации
-    var showTestResults by remember { mutableStateOf(false) }
+    // Состояние для анимации - инициализируем как true, чтобы показать подсказку
+    var showTestResults by remember { mutableStateOf(true) }
+    
+    // Цвет кнопки, который будем использовать также для счетчика
+    val buttonColor = MaterialTheme.colorScheme.primary
     
     val scrollState = rememberScrollState()
     val context = LocalContext.current
@@ -406,8 +409,8 @@ fun LatencyTestScreen(
     fun getPerformanceColor(latencyValue: Long): Color {
         return when {
             latencyValue < 20 -> Green
-            latencyValue < 33 -> Yellow
-            latencyValue < 50 -> MediumBlue
+            latencyValue < 33 -> MediumBlue
+            latencyValue < 50 -> Yellow
             latencyValue < 70 -> Orange
             else -> Red
         }
@@ -430,7 +433,10 @@ fun LatencyTestScreen(
         if (testActive) return
         
         testActive = true
-        showTestResults = false
+        // Отключаем отображение результатов только если есть предыдущие измерения
+        if (resultList.isNotEmpty()) {
+            showTestResults = false
+        }
         
         // Фиксируем время нажатия на кнопку
         touchTimestamp = SystemClock.elapsedRealtime()
@@ -557,7 +563,17 @@ fun LatencyTestScreen(
                         modifier = Modifier.align(Alignment.Center),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        if (showTestResults) {
+                        // Отображаем либо результат измерения, либо текст "Нет измерений"
+                        if (resultList.isEmpty()) {
+                            // Если измерений еще нет - простой текст без Card и иконки
+                            Text(
+                                text = stringResource(R.string.no_measurements),
+                                fontSize = 22.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        } else if (showTestResults) {
+                            // Если есть хотя бы одно измерение и нужно показать результат
                             Text(
                                 text = "${latency} ${stringResource(R.string.ms)}",
                                 fontSize = 48.sp,
@@ -572,15 +588,15 @@ fun LatencyTestScreen(
                         }
                     }
 
-                    // Круглый счетчик наподобие бейджа
-                    if (showTestResults && resultList.isNotEmpty()) {
+                    // Круглый счетчик наподобие бейджа отображаем только при наличии измерений
+                    if (resultList.isNotEmpty()) {
                         Box(
                             modifier = Modifier
                                 .size(28.dp)
                                 .align(Alignment.TopEnd)
                                 .offset(x = (-10).dp, y = 10.dp)
                                 .background(
-                                    color = Color(0xFFD32F2F),
+                                    color = buttonColor,
                                     shape = CircleShape
                                 ),
                             contentAlignment = Alignment.Center

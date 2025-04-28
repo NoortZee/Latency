@@ -11,6 +11,7 @@
     <string name="overall_latency">Общая задержка:</string>
     <string name="overall_statistics">Общая статистика</string>
     <string name="reset_statistics">Сбросить статистику</string>
+    <string name="no_measurements">Нет измерений</string>
     
     <!-- Строки для информации об устройстве -->
     <string name="model">Модель:</string>

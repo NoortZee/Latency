@@ -11,6 +11,7 @@
     <string name="overall_latency">Overall Latency:</string>
     <string name="overall_statistics">Overall Statistics</string>
     <string name="reset_statistics">Reset Statistics</string>
+    <string name="no_measurements">No measurements</string>
     
     <!-- Device info strings -->
     <string name="model">Model:</string>
