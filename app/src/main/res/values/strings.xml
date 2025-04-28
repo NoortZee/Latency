@@ -1,3 +1,75 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Тест задержки</string>
+    <string name="app_name">Latency Test</string>
+    
+    <!-- Main headings and buttons -->
+    <string name="test_title">Touch Latency Test</string>
+    <string name="measuring">Measuring...</string>
+    <string name="tap_to_measure">Tap to measure</string>
+    <string name="device_info">Device Information</string>
+    <string name="latency_details">Latency Details</string>
+    <string name="overall_latency">Overall Latency:</string>
+    <string name="overall_statistics">Overall Statistics</string>
+    <string name="reset_statistics">Reset Statistics</string>
+    
+    <!-- Device info strings -->
+    <string name="model">Model:</string>
+    <string name="version">Version:</string>
+    <string name="current_refresh_rate">Current refresh rate:</string>
+    <string name="hz">Hz</string>
+    <string name="ms_per_frame">ms/frame</string>
+    <string name="max_refresh_rate">Maximum refresh rate:</string>
+    <string name="touch_polling_rate">Touch polling rate:</string>
+    <string name="sensor_type">Sensor type:</string>
+    <string name="system_mode">System mode:</string>
+    
+    <!-- Sensor types -->
+    <string name="gaming_sensor">Gaming</string>
+    <string name="flagship_sensor">Flagship</string>
+    <string name="modern_sensor">Modern</string>
+    <string name="standard_sensor">Standard</string>
+    
+    <!-- Performance modes -->
+    <string name="power_save_mode">Power Save Mode</string>
+    <string name="standard_mode">Standard Mode</string>
+    <string name="optimal_mode">Optimal Mode</string>
+    <string name="high_performance_mode">High Performance Mode</string>
+    
+    <!-- Latency detail strings -->
+    <string name="touch_response">1. Touch Response:</string>
+    <string name="vsync_wait">2. VSync Wait:</string>
+    <string name="os_processing">3. OS Processing:</string>
+    <string name="rendering">4. Rendering:</string>
+    <string name="display_update">5. Display Update:</string>
+    <string name="ms">ms</string>
+    
+    <!-- Statistics strings -->
+    <string name="average_value">Average value:</string>
+    <string name="min_value">Minimum value:</string>
+    <string name="max_value">Maximum value:</string>
+    <string name="test_count">Test count:</string>
+    
+    <!-- Performance ratings -->
+    <string name="excellent">Excellent (gaming device level)</string>
+    <string name="very_good">Very good (below 60Hz frame time)</string>
+    <string name="good">Good (typical for mid-range devices)</string>
+    <string name="average">Average (noticeable latency)</string>
+    <string name="below_average">Below average (significant latency)</string>
+    <string name="high_latency">High latency (may hinder interaction)</string>
+    
+    <!-- Touch sensor estimations -->
+    <string name="dynamic_estimation">Dynamic estimation</string>
+    <string name="gaming_device_144">Gaming device with 144+ Hz (≈360 Hz)</string>
+    <string name="gaming_device">Gaming device (≈240 Hz)</string>
+    <string name="flagship_device_120">Flagship device 120+ Hz (≈240 Hz)</string>
+    <string name="flagship_device_90">Flagship device 90+ Hz (≈180 Hz)</string>
+    <string name="flagship_device">Flagship device (≈120 Hz)</string>
+    <string name="modern_device_90">Modern device 90+ Hz (≈120 Hz)</string>
+    <string name="modern_device">Modern device (≈90 Hz)</string>
+    <string name="android9_90">Android 9+ with 90+ Hz screen (≈90 Hz)</string>
+    <string name="android9">Android 9+ (≈90 Hz)</string>
+    <string name="standard_touch">Standard sensor (≈60 Hz)</string>
+    
+    <!-- Notes -->
+    <string name="note">Note: The \"Touch Response\" component uses an approximate estimation based on device model and Android version, as it is not possible to programmatically determine the exact time between physical touch and system registration.</string>
 </resources>

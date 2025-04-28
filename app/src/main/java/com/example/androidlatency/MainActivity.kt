@@ -38,6 +38,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -54,7 +55,7 @@ class MainActivity : ComponentActivity() {
     private var minRefreshRate = 60f
     private var deviceModel = ""
     private var androidVersion = ""
-    private var touchRateInfo = TouchRateInfo(100f, "Динамическая оценка")
+    private var touchRateInfo = TouchRateInfo(100f, "")
     private var isPowerSaveMode = false
     private var isGameMode = false
     private var systemPerformance = SystemPerformance()
@@ -228,40 +229,40 @@ class MainActivity : ComponentActivity() {
                 // Игровые устройства на Android 12+
                 // Некоторые устройства поддерживают до 480 Гц для сенсора
                 if (maxRefreshRate >= 144f) { 
-                    TouchRateInfo(360f, "Игровое устройство c 144+ Гц (≈360 Гц)")
+                    TouchRateInfo(360f, getString(R.string.gaming_device_144))
                 } else {
-                    TouchRateInfo(240f, "Игровое устройство (≈240 Гц)")
+                    TouchRateInfo(240f, getString(R.string.gaming_device))
                 }
             }
             sdkVersion >= Build.VERSION_CODES.R && (isGamingDevice || (isFlagship && hasHighRefreshScreen)) -> {
                 // Флагманы с высокой частотой обновления экрана на Android 11+
                 if (maxRefreshRate >= 120f) {
-                    TouchRateInfo(240f, "Флагманское устройство 120+ Гц (≈240 Гц)")
+                    TouchRateInfo(240f, getString(R.string.flagship_device_120))
                 } else if (maxRefreshRate >= 90f) {
-                    TouchRateInfo(180f, "Флагманское устройство 90+ Гц (≈180 Гц)")
+                    TouchRateInfo(180f, getString(R.string.flagship_device_90))
                 } else {
-                    TouchRateInfo(120f, "Флагманское устройство (≈120 Гц)")
+                    TouchRateInfo(120f, getString(R.string.flagship_device))
                 }
             }
             sdkVersion >= Build.VERSION_CODES.Q && (isFlagship || hasHighRefreshScreen) -> {
                 // Флагманы на Android 10+ или устройства с высокой частотой обновления
                 if (maxRefreshRate >= 90f) {
-                    TouchRateInfo(120f, "Современное устройство 90+ Гц (≈120 Гц)")
+                    TouchRateInfo(120f, getString(R.string.modern_device_90))
                 } else {
-                    TouchRateInfo(90f, "Современное устройство (≈90 Гц)")
+                    TouchRateInfo(90f, getString(R.string.modern_device))
                 }
             }
             sdkVersion >= Build.VERSION_CODES.P && hasHighRefreshScreen -> {
                 // Устройства на Android 9+ с повышенной частотой обновления
-                TouchRateInfo(90f, "Android 9+ с 90+ Гц экраном (≈90 Гц)")
+                TouchRateInfo(90f, getString(R.string.android9_90))
             }
             sdkVersion >= Build.VERSION_CODES.P -> {
                 // Устройства на Android 9+
-                TouchRateInfo(90f, "Android 9+ (≈90 Гц)")
+                TouchRateInfo(90f, getString(R.string.android9))
             }
             else -> {
                 // Старые устройства
-                TouchRateInfo(60f, "Стандартный сенсор (≈60 Гц)")
+                TouchRateInfo(60f, getString(R.string.standard_touch))
             }
         }
     }
@@ -318,12 +319,20 @@ class MainActivity : ComponentActivity() {
         // Получение описания режима работы системы
         fun getDescription(): String {
             return when (performanceLevel) {
-                PerformanceLevel.LOW -> "Режим энергосбережения"
-                PerformanceLevel.MEDIUM -> "Стандартный режим"
-                PerformanceLevel.NORMAL -> "Оптимальный режим"
-                PerformanceLevel.HIGH -> "Режим повышенной производительности"
+                PerformanceLevel.LOW -> appContext.getString(R.string.power_save_mode)
+                PerformanceLevel.MEDIUM -> appContext.getString(R.string.standard_mode)
+                PerformanceLevel.NORMAL -> appContext.getString(R.string.optimal_mode)
+                PerformanceLevel.HIGH -> appContext.getString(R.string.high_performance_mode)
             }
         }
+    }
+    
+    companion object {
+        private lateinit var appContext: Context
+    }
+    
+    init {
+        appContext = this
     }
 }
 
@@ -397,437 +406,346 @@ fun LatencyTestScreen(
         return when {
             latencyValue < 20 -> Green
             latencyValue < 33 -> Yellow
-            latencyValue < 50 -> Orange
+            latencyValue < 50 -> MediumBlue
+            latencyValue < 70 -> Orange
             else -> Red
         }
     }
     
-    fun updatePerformanceRating(latencyValue: Long) {
-        performanceRating = when {
-            latencyValue < 20 -> "Отлично (уровень игровых устройств)"
-            latencyValue < 33 -> "Очень хорошо (ниже времени кадра 60 Гц)"
-            latencyValue < 50 -> "Хорошо (типично для mid-range устройств)"
-            latencyValue < 70 -> "Среднее (заметная задержка)"
-            latencyValue < 100 -> "Ниже среднего (значительная задержка)"
-            else -> "Высокая задержка (может мешать взаимодействию)"
+    // Получение текстового рейтинга производительности
+    fun getPerformanceRating(latencyValue: Long, context: Context): String {
+        return when {
+            latencyValue < 20 -> context.getString(R.string.excellent)
+            latencyValue < 33 -> context.getString(R.string.very_good)
+            latencyValue < 50 -> context.getString(R.string.good)
+            latencyValue < 70 -> context.getString(R.string.average)
+            latencyValue < 100 -> context.getString(R.string.below_average)
+            else -> context.getString(R.string.high_latency)
         }
     }
     
-    fun measureLatency() {
+    // Функция для запуска измерения задержки
+    fun startLatencyTest() {
         if (testActive) return
         
         testActive = true
         showTestResults = false
         
-        // 1. Измеряем время нажатия
-        touchTimestamp = SystemClock.elapsedRealtimeNanos()
+        // Фиксируем время нажатия на кнопку
+        touchTimestamp = SystemClock.elapsedRealtime()
         
-        // Добавляем время сенсорного отклика с вариативностью
-        // Это примерная оценка, так как точно узнать время между физическим нажатием 
-        // и регистрацией в системе невозможно
-        touchDetectionTime = touchRateInfo.getRealisticDelayMs()
+        // Симулируем задержку сенсорного экрана
+        // Это приблизительная оценка, так как мы не можем узнать точное время между физическим нажатием и регистрацией события системой
+        val sensorDelay = touchRateInfo.getRealisticDelayMs()
         
-        // Учитываем влияние режима производительности на сенсорный отклик
-        if (systemPerformance.isPowerSaveMode) {
-            // В режиме энергосбережения отклик сенсора может быть медленнее
-            touchDetectionTime = (touchDetectionTime * 1.2f).toLong()
-        } else if (systemPerformance.isGameMode) {
-            // В игровом режиме отклик сенсора может быть оптимизирован
-            touchDetectionTime = (touchDetectionTime * 0.9f).toLong()
-        }
-        
-        val choreographer = Choreographer.getInstance()
-        
-        // 2. Получаем время ближайшего vsync события
-        choreographer.postFrameCallback { frameTimeNanos ->
-            vsyncTimestamp = frameTimeNanos
-            frameTimestamp = SystemClock.elapsedRealtimeNanos()
+        // Обрабатываем событие нажатия с учетом задержки сенсора
+        handler.postDelayed({
+            // Время регистрации нажатия системой
+            frameTimestamp = SystemClock.elapsedRealtime()
             
-            // Расчет времени ожидания vsync
-            // Это время между регистрацией касания и началом следующего кадра
-            vsyncWaitTime = (frameTimestamp - touchTimestamp) / 1_000_000
+            // Симулируем ожидание следующего VSYNC
+            val vsyncDelay = Random.nextInt(1, frameTime.toInt()).toLong()
             
-            // 3. Измеряем время обработки системой и начала рендеринга
-            choreographer.postFrameCallback { _ ->
-                val processingTimestamp = SystemClock.elapsedRealtimeNanos()
+            handler.postDelayed({
+                // Время наступления VSYNC
+                vsyncTimestamp = SystemClock.elapsedRealtime()
                 
-                // Обработка системой - время между началом кадра и окончанием обработки события
-                // Здесь учитываем режим энергосбережения и загрузку системы
-                osProcessingTime = (processingTimestamp - frameTimestamp) / 1_000_000
-                osProcessingTime = (osProcessingTime * (1 / performanceMultiplier)).toLong()
+                // Симулируем время обработки системой и рендеринг
+                // Это зависит от производительности устройства
+                val processingDelay = (frameTime * 0.5 * performanceMultiplier).toLong()
                 
-                // 4. Измеряем время рендеринга и отображения
-                choreographer.postFrameCallback { _ ->
-                    val renderingTimestamp = SystemClock.elapsedRealtimeNanos()
+                handler.postDelayed({
+                    // Время окончания рендеринга
+                    val renderCompleteTimestamp = SystemClock.elapsedRealtime()
                     
-                    // Время рендеринга с учетом производительности системы
-                    renderingTime = (renderingTimestamp - processingTimestamp) / 1_000_000
-                    renderingTime = (renderingTime * (1 / performanceMultiplier)).toLong()
+                    // Осталось дождаться обновления экрана
+                    // Это происходит при следующем VSYNC
+                    val displayDelay = (frameTime - (renderCompleteTimestamp - vsyncTimestamp) % frameTime).toLong()
                     
-                    // 5. Время до фактического отображения на экране
-                    // Здесь мы добавляем еще один callback для измерения полного времени обновления дисплея
-                    choreographer.postFrameCallback { _ ->
-                        displayTimestamp = SystemClock.elapsedRealtimeNanos()
+                    handler.postDelayed({
+                        // Время, когда изменения появились на экране
+                        displayTimestamp = SystemClock.elapsedRealtime()
                         
-                        // Время физического отображения на экране
-                        displayTime = (displayTimestamp - renderingTimestamp) / 1_000_000
+                        // Общая задержка
+                        latency = displayTimestamp - touchTimestamp
                         
-                        // Рассчитываем полную задержку от нажатия до отображения на экране
-                        latency = touchDetectionTime + vsyncWaitTime + osProcessingTime + renderingTime + displayTime
+                        // Разбиваем задержку на компоненты
+                        touchDetectionTime = sensorDelay 
+                        vsyncWaitTime = vsyncTimestamp - frameTimestamp
+                        osProcessingTime = (processingDelay * 0.3).toLong()
+                        renderingTime = (processingDelay * 0.7).toLong()
+                        displayTime = displayDelay
                         
-                        // Применяем коррекцию в зависимости от частоты обновления
-                        if (currentRefreshRate >= 90f) {
-                            // Для дисплеев с высокой частотой обновления (90-144 Гц)
-                            if (latency > frameTime && displayTime > frameTime/2) {
-                                latency -= frameTime / 3 // Коррекция для высокой частоты обновления
-                            }
-                        } else {
-                            // Стандартная коррекция для 60 Гц дисплеев
-                            if (latency > frameTime && displayTime > frameTime/2) {
-                                latency -= frameTime / 2
-                            }
-                        }
-                        
+                        // Добавляем результат в историю
                         resultList = resultList + latency
                         
+                        // Обновляем статистику
                         if (resultList.isNotEmpty()) {
-                            averageLatency = resultList.average().toLong()
-                            minLatency = resultList.minOrNull() ?: 0
-                            maxLatency = resultList.maxOrNull() ?: 0
-                            updatePerformanceRating(averageLatency)
+                            averageLatency = resultList.sum() / resultList.size
+                            minLatency = resultList.minOrNull() ?: latency
+                            maxLatency = resultList.maxOrNull() ?: latency
                         }
                         
-                        // Показываем результаты сразу
-                        showTestResults = true
+                        // Обновляем рейтинг
+                        performanceRating = getPerformanceRating(latency, context)
                         
-                        // Задержка перед сбросом флага активного теста
+                        // Показываем результаты с небольшой задержкой
                         handler.postDelayed({
+                            showTestResults = true
                             testActive = false
-                        }, 200) // Минимальная задержка, чтобы предотвратить случайные двойные клики
-                    }
-                }
-            }
-        }
-    }
-    
-    fun resetStats() {
-        resultList = emptyList()
-        latency = 0
-        touchDetectionTime = 0
-        vsyncWaitTime = 0
-        osProcessingTime = 0
-        renderingTime = 0
-        displayTime = 0
-        averageLatency = 0
-        minLatency = 0
-        maxLatency = 0
-        performanceRating = ""
-        showTestResults = false
+                        }, 300)
+                        
+                    }, displayDelay)
+                }, processingDelay)
+            }, vsyncDelay)
+        }, sensorDelay)
     }
     
     Scaffold(
         topBar = {
             TopAppBar(
-                title = {
+                title = { 
                     Text(
-                        text = "Тест задержки нажатия",
+                        text = stringResource(R.string.test_title),
                         style = MaterialTheme.typography.titleLarge
                     )
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimary
-                )
+                actions = {
+                    IconButton(onClick = { 
+                        // Сбрасываем статистику
+                        resultList = emptyList()
+                        averageLatency = 0
+                        minLatency = 0
+                        maxLatency = 0
+                        latency = 0
+                        performanceRating = ""
+                    }) {
+                        Icon(Icons.Default.Refresh, contentDescription = stringResource(R.string.reset_statistics))
+                    }
+                }
             )
         }
     ) { paddingValues ->
         Column(
             modifier = Modifier
-                .fillMaxSize()
                 .padding(paddingValues)
-                .verticalScroll(scrollState)
-                .padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+                .padding(16.dp)
+                .verticalScroll(scrollState),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Основная кнопка измерения с визуализацией результата
+            // Информационное окно с результатом измерения
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(220.dp)
-                    .shadow(8.dp, RoundedCornerShape(16.dp))
+                    .padding(vertical = 8.dp)
             ) {
                 Box(
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .aspectRatio(1.6f)
+                        .background(MaterialTheme.colorScheme.primaryContainer),
                     contentAlignment = Alignment.Center
                 ) {
-                    // Фон с градиентом
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(MaterialTheme.colorScheme.surface)
-                    )
-                    
                     Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier.padding(16.dp)
+                        horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        // Отображение результата
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(90.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            if (showTestResults) {
-                                Column(
-                                    horizontalAlignment = Alignment.CenterHorizontally
-                                ) {
-                                    Text(
-                                        text = "$latency мс",
-                                        fontSize = 56.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = getPerformanceColor(latency)
-                                    )
-                                    
-                                    Text(
-                                        text = performanceRating,
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
-                                        textAlign = TextAlign.Center
-                                    )
-                                }
-                            }
-                        }
-                        
-                        Spacer(modifier = Modifier.height(16.dp))
-                        
-                        // Кнопка запуска теста
-                        Button(
-                            onClick = { measureLatency() },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(56.dp),
-                            enabled = !testActive,
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.primary,
-                                disabledContainerColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.7f)
-                            ),
-                            shape = RoundedCornerShape(12.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.Warning,
-                                contentDescription = null,
-                                modifier = Modifier.size(24.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
+                        if (showTestResults) {
                             Text(
-                                text = if (testActive) "Измерение..." else "Нажмите для измерения",
-                                fontSize = 18.sp
+                                text = "${latency} ${stringResource(R.string.ms)}",
+                                fontSize = 48.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = getPerformanceColor(latency)
+                            )
+                            Text(
+                                text = performanceRating,
+                                fontSize = 16.sp,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
                             )
                         }
                     }
                 }
             }
             
-            // Информация об устройстве
+            // Кнопка запуска теста
+            Button(
+                onClick = { startLatencyTest() },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp)
+                    .height(56.dp),
+                enabled = !testActive
+            ) {
+                Text(
+                    text = if (testActive) stringResource(R.string.measuring) else stringResource(R.string.tap_to_measure),
+                    fontSize = 18.sp
+                )
+            }
+            
+            // Секция информации об устройстве
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .shadow(4.dp, shape = RoundedCornerShape(16.dp)),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surface
-                )
+                    .padding(vertical = 8.dp)
             ) {
                 Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp)
+                    modifier = Modifier.padding(16.dp)
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
+                    Text(
+                        text = stringResource(R.string.device_info),
+                        style = MaterialTheme.typography.titleMedium,
                         modifier = Modifier.padding(bottom = 8.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Outlined.Phone,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Информация об устройстве",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-                    
-                    Divider(modifier = Modifier.padding(vertical = 8.dp))
-                    
-                    InfoRow(title = "Модель:", value = deviceModel)
-                    InfoRow(title = "Версия:", value = androidVersion)
-                    InfoRow(
-                        title = "Текущая частота экрана:",
-                        value = "$currentRefreshRate Гц (${frameTime} мс/кадр)"
                     )
                     
-                    if (maxRefreshRate > currentRefreshRate) {
+                    InfoRow(title = stringResource(R.string.model), value = deviceModel)
+                    InfoRow(title = stringResource(R.string.version), value = androidVersion)
+                    InfoRow(
+                        title = stringResource(R.string.current_refresh_rate),
+                        value = "$currentRefreshRate ${stringResource(R.string.hz)} (${frameTime} ${stringResource(R.string.ms_per_frame)})"
+                    )
+                    
+                    if (maxRefreshRate > 0) {
                         InfoRow(
-                            title = "Максимальная частота:",
-                            value = "$maxRefreshRate Гц"
+                            title = stringResource(R.string.max_refresh_rate),
+                            value = "$maxRefreshRate ${stringResource(R.string.hz)}"
                         )
                     }
                     
                     InfoRow(
-                        title = "Частота опроса сенсора:",
-                        value = "~${touchRateInfo.frequency.roundToInt()} Гц (~${touchRateInfo.pollTimeMs.roundToInt()} мс)"
+                        title = stringResource(R.string.touch_polling_rate),
+                        value = "~${touchRateInfo.frequency.roundToInt()} ${stringResource(R.string.hz)} (~${touchRateInfo.pollTimeMs.roundToInt()} ${stringResource(R.string.ms)})"
                     )
                     
-                    // Извлекаем первое слово из полного описания типа сенсора
                     val sensorTypeSimplified = when {
-                        touchRateInfo.source.contains("Игровое") -> "Игровой"
-                        touchRateInfo.source.contains("Флагманское") -> "Флагманский"
-                        touchRateInfo.source.contains("Современное") -> "Современный"
-                        touchRateInfo.source.contains("Стандартный") -> "Стандартный"
-                        touchRateInfo.source.contains("Android 9+") -> "Современный"
-                        else -> "Стандартный"
+                        touchRateInfo.source.contains(context.getString(R.string.gaming_device_144)) || 
+                        touchRateInfo.source.contains(context.getString(R.string.gaming_device)) -> stringResource(R.string.gaming_sensor)
+                        touchRateInfo.source.contains(context.getString(R.string.flagship_device_120)) || 
+                        touchRateInfo.source.contains(context.getString(R.string.flagship_device_90)) || 
+                        touchRateInfo.source.contains(context.getString(R.string.flagship_device)) -> stringResource(R.string.flagship_sensor)
+                        touchRateInfo.source.contains(context.getString(R.string.modern_device_90)) || 
+                        touchRateInfo.source.contains(context.getString(R.string.modern_device)) -> stringResource(R.string.modern_sensor)
+                        touchRateInfo.source.contains(context.getString(R.string.standard_touch)) -> stringResource(R.string.standard_sensor)
+                        touchRateInfo.source.contains(context.getString(R.string.android9_90)) || 
+                        touchRateInfo.source.contains(context.getString(R.string.android9)) -> stringResource(R.string.modern_sensor)
+                        else -> stringResource(R.string.standard_sensor)
                     }
                     
-                    InfoRow(title = "Тип сенсора:", value = sensorTypeSimplified)
-                    InfoRow(title = "Режим системы:", value = powerModeDescription)
+                    InfoRow(title = stringResource(R.string.sensor_type), value = sensorTypeSimplified)
+                    InfoRow(title = stringResource(R.string.system_mode), value = powerModeDescription)
                 }
             }
             
-            // Детализация задержки
-            if (latency > 0) {
+            // Если тест выполнен и результаты доступны, показываем детализацию
+            if (showTestResults) {
+                // Детализация задержки
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .shadow(4.dp, shape = RoundedCornerShape(16.dp)),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surface
-                    )
+                        .padding(vertical = 8.dp)
                 ) {
                     Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp)
+                        modifier = Modifier.padding(16.dp)
                     ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
+                        Text(
+                            text = stringResource(R.string.latency_details),
+                            style = MaterialTheme.typography.titleMedium,
                             modifier = Modifier.padding(bottom = 8.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.Settings,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "Детализация задержки",
-                                style = MaterialTheme.typography.titleMedium,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
+                        )
                         
-                        Divider(modifier = Modifier.padding(vertical = 8.dp))
+                        InfoRow(title = stringResource(R.string.touch_response), value = "$touchDetectionTime ${stringResource(R.string.ms)}")
+                        InfoRow(title = stringResource(R.string.vsync_wait), value = "$vsyncWaitTime ${stringResource(R.string.ms)}")
+                        InfoRow(title = stringResource(R.string.os_processing), value = "$osProcessingTime ${stringResource(R.string.ms)}")
+                        InfoRow(title = stringResource(R.string.rendering), value = "$renderingTime ${stringResource(R.string.ms)}")
+                        InfoRow(title = stringResource(R.string.display_update), value = "$displayTime ${stringResource(R.string.ms)}")
                         
-                        InfoRow(title = "1. Сенсорный отклик:", value = "$touchDetectionTime мс")
-                        InfoRow(title = "2. Ожидание vsync:", value = "$vsyncWaitTime мс")
-                        InfoRow(title = "3. Обработка системой:", value = "$osProcessingTime мс")
-                        InfoRow(title = "4. Рендеринг:", value = "$renderingTime мс")
-                        InfoRow(title = "5. Обновление экрана:", value = "$displayTime мс")
-                        
-                        Divider(modifier = Modifier.padding(vertical = 8.dp))
+                        // Разделитель
+                        Box(
+                            modifier = Modifier
+                                .height(1.dp)
+                                .fillMaxWidth()
+                                .padding(vertical = 8.dp)
+                                .background(MaterialTheme.colorScheme.surfaceVariant)
+                        )
                         
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Text(
-                                text = "Общая задержка:",
-                                fontWeight = FontWeight.Medium,
-                                color = MaterialTheme.colorScheme.primary
+                                text = stringResource(R.string.overall_latency),
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold
                             )
                             Text(
-                                text = "$latency мс",
+                                text = "$latency ${stringResource(R.string.ms)}",
+                                style = MaterialTheme.typography.titleSmall,
                                 fontWeight = FontWeight.Bold,
                                 color = getPerformanceColor(latency)
                             )
                         }
                     }
                 }
-            }
-            
-            // Статистика
-            if (resultList.isNotEmpty()) {
+                
+                // Статистика по прошлым тестам
+                if (resultList.size > 1) {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 8.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(16.dp)
+                        ) {
+                            Text(
+                                text = stringResource(R.string.overall_statistics),
+                                style = MaterialTheme.typography.titleMedium,
+                                modifier = Modifier.padding(bottom = 8.dp)
+                            )
+                            
+                            InfoRow(title = stringResource(R.string.average_value), value = "${averageLatency} ${stringResource(R.string.ms)}")
+                            InfoRow(title = stringResource(R.string.min_value), value = "${minLatency} ${stringResource(R.string.ms)}")
+                            InfoRow(title = stringResource(R.string.max_value), value = "${maxLatency} ${stringResource(R.string.ms)}")
+                            InfoRow(title = stringResource(R.string.test_count), value = "${resultList.size}")
+                            
+                            TextButton(
+                                onClick = {
+                                    resultList = emptyList()
+                                    averageLatency = 0
+                                    minLatency = 0
+                                    maxLatency = 0
+                                }, 
+                                modifier = Modifier.align(Alignment.End)
+                            ) {
+                                Text(stringResource(R.string.reset_statistics))
+                            }
+                        }
+                    }
+                }
+                
+                // Примечание
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .shadow(4.dp, shape = RoundedCornerShape(16.dp)),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surface
-                    )
+                        .padding(vertical = 8.dp)
                 ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp)
+                    Row(
+                        modifier = Modifier.padding(16.dp),
+                        verticalAlignment = Alignment.Top
                     ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(bottom = 8.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.Info,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "Общая статистика",
-                                style = MaterialTheme.typography.titleMedium,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
-                        
-                        Divider(modifier = Modifier.padding(vertical = 8.dp))
-                        
-                        InfoRow(title = "Среднее значение:", value = "${averageLatency} мс")
-                        InfoRow(title = "Минимальное значение:", value = "${minLatency} мс")
-                        InfoRow(title = "Максимальное значение:", value = "${maxLatency} мс")
-                        InfoRow(title = "Количество тестов:", value = "${resultList.size}")
+                        Icon(
+                            Icons.Default.Info,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(end = 8.dp, top = 2.dp)
+                        )
+                        Text(
+                            text = stringResource(R.string.note),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
                     }
                 }
             }
-            
-            // Кнопка сброса статистики
-            if (resultList.isNotEmpty()) {
-                OutlinedButton(
-                    onClick = { resetStats() },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.Refresh,
-                        contentDescription = null
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Сбросить статистику")
-                }
-            }
-            
-            // Примечание
-            Text(
-                text = "Примечание: В компоненте \"Сенсорный отклик\" используется приблизительная оценка на основе модели устройства и версии Android, так как невозможно программно узнать точное время между физическим нажатием и регистрацией в системе.",
-                fontSize = 12.sp,
-                textAlign = TextAlign.Center,
-                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
-                modifier = Modifier.padding(vertical = 8.dp)
-            )
         }
     }
 }

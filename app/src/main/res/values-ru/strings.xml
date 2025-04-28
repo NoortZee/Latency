@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Тест задержки</string>
+    
+    <!-- Строки для основных заголовков и кнопок -->
+    <string name="test_title">Тест задержки нажатия</string>
+    <string name="measuring">Измерение...</string>
+    <string name="tap_to_measure">Нажмите для измерения</string>
+    <string name="device_info">Информация об устройстве</string>
+    <string name="latency_details">Детализация задержки</string>
+    <string name="overall_latency">Общая задержка:</string>
+    <string name="overall_statistics">Общая статистика</string>
+    <string name="reset_statistics">Сбросить статистику</string>
+    
+    <!-- Строки для информации об устройстве -->
+    <string name="model">Модель:</string>
+    <string name="version">Версия:</string>
+    <string name="current_refresh_rate">Текущая частота экрана:</string>
+    <string name="hz">Гц</string>
+    <string name="ms_per_frame">мс/кадр</string>
+    <string name="max_refresh_rate">Максимальная частота:</string>
+    <string name="touch_polling_rate">Частота опроса сенсора:</string>
+    <string name="sensor_type">Тип сенсора:</string>
+    <string name="system_mode">Режим системы:</string>
+    
+    <!-- Типы сенсоров -->
+    <string name="gaming_sensor">Игровой</string>
+    <string name="flagship_sensor">Флагманский</string>
+    <string name="modern_sensor">Современный</string>
+    <string name="standard_sensor">Стандартный</string>
+    
+    <!-- Режимы производительности -->
+    <string name="power_save_mode">Режим энергосбережения</string>
+    <string name="standard_mode">Стандартный режим</string>
+    <string name="optimal_mode">Оптимальный режим</string>
+    <string name="high_performance_mode">Режим повышенной производительности</string>
+    
+    <!-- Строки для деталей задержки -->
+    <string name="touch_response">1. Сенсорный отклик:</string>
+    <string name="vsync_wait">2. Ожидание vsync:</string>
+    <string name="os_processing">3. Обработка системой:</string>
+    <string name="rendering">4. Рендеринг:</string>
+    <string name="display_update">5. Обновление экрана:</string>
+    <string name="ms">мс</string>
+    
+    <!-- Строки статистики -->
+    <string name="average_value">Среднее значение:</string>
+    <string name="min_value">Минимальное значение:</string>
+    <string name="max_value">Максимальное значение:</string>
+    <string name="test_count">Количество тестов:</string>
+    
+    <!-- Рейтинги производительности -->
+    <string name="excellent">Отлично (уровень игровых устройств)</string>
+    <string name="very_good">Очень хорошо (ниже времени кадра 60 Гц)</string>
+    <string name="good">Хорошо (типично для mid-range устройств)</string>
+    <string name="average">Среднее (заметная задержка)</string>
+    <string name="below_average">Ниже среднего (значительная задержка)</string>
+    <string name="high_latency">Высокая задержка (может мешать взаимодействию)</string>
+    
+    <!-- Оценки датчика касания -->
+    <string name="dynamic_estimation">Динамическая оценка</string>
+    <string name="gaming_device_144">Игровое устройство c 144+ Гц (≈360 Гц)</string>
+    <string name="gaming_device">Игровое устройство (≈240 Гц)</string>
+    <string name="flagship_device_120">Флагманское устройство 120+ Гц (≈240 Гц)</string>
+    <string name="flagship_device_90">Флагманское устройство 90+ Гц (≈180 Гц)</string>
+    <string name="flagship_device">Флагманское устройство (≈120 Гц)</string>
+    <string name="modern_device_90">Современное устройство 90+ Гц (≈120 Гц)</string>
+    <string name="modern_device">Современное устройство (≈90 Гц)</string>
+    <string name="android9_90">Android 9+ с 90+ Гц экраном (≈90 Гц)</string>
+    <string name="android9">Android 9+ (≈90 Гц)</string>
+    <string name="standard_touch">Стандартный сенсор (≈60 Гц)</string>
+    
+    <!-- Примечание -->
+    <string name="note">Примечание: В компоненте \"Сенсорный отклик\" используется приблизительная оценка на основе модели устройства и версии Android, так как невозможно программно узнать точное время между физическим нажатием и его регистрацией системой.</string>
+</resources> 
