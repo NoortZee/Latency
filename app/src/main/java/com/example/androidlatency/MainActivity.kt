@@ -24,19 +24,25 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.outlined.Phone
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.androidlatency.ui.theme.AndroidLatencyTheme
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
+import com.example.androidlatency.ui.theme.*
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
@@ -321,6 +327,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LatencyTestScreen(
     refreshRate: Float, 
@@ -338,17 +345,17 @@ fun LatencyTestScreen(
     var latency by remember { mutableStateOf(0L) }
     
     // Компоненты задержки
-    var touchDetectionTime by remember { mutableStateOf(0L) } // Сенсорный отклик
-    var vsyncWaitTime by remember { mutableStateOf(0L) } // Ожидание vsync
-    var osProcessingTime by remember { mutableStateOf(0L) } // Обработка системой
-    var renderingTime by remember { mutableStateOf(0L) } // Рендеринг
-    var displayTime by remember { mutableStateOf(0L) } // Физическое отображение
+    var touchDetectionTime by remember { mutableStateOf(0L) }
+    var vsyncWaitTime by remember { mutableStateOf(0L) }
+    var osProcessingTime by remember { mutableStateOf(0L) }
+    var renderingTime by remember { mutableStateOf(0L) }
+    var displayTime by remember { mutableStateOf(0L) }
     
     var resultList by remember { mutableStateOf(listOf<Long>()) }
     var averageLatency by remember { mutableStateOf(0L) }
     var minLatency by remember { mutableStateOf(0L) }
     var maxLatency by remember { mutableStateOf(0L) }
-    var frameTime by remember { mutableStateOf(0L) } // время одного кадра в мс
+    var frameTime by remember { mutableStateOf(0L) }
     var performanceRating by remember { mutableStateOf("") }
     var currentRefreshRate by remember { mutableStateOf(refreshRate) }
     
@@ -356,8 +363,10 @@ fun LatencyTestScreen(
     var performanceMultiplier by remember { mutableStateOf(systemPerformance.getPerformanceMultiplier()) }
     var powerModeDescription by remember { mutableStateOf(systemPerformance.getDescription()) }
     
+    // Состояние для анимации
+    var showTestResults by remember { mutableStateOf(false) }
+    
     val scrollState = rememberScrollState()
-    val coroutineScope = rememberCoroutineScope()
     val context = LocalContext.current
     val handler = Handler(Looper.getMainLooper())
     
@@ -383,6 +392,16 @@ fun LatencyTestScreen(
         powerModeDescription = systemPerformance.getDescription()
     }
     
+    // Получение цвета по рейтингу производительности
+    fun getPerformanceColor(latencyValue: Long): Color {
+        return when {
+            latencyValue < 20 -> Green
+            latencyValue < 33 -> Yellow
+            latencyValue < 50 -> Orange
+            else -> Red
+        }
+    }
+    
     fun updatePerformanceRating(latencyValue: Long) {
         performanceRating = when {
             latencyValue < 20 -> "Отлично (уровень игровых устройств)"
@@ -398,6 +417,7 @@ fun LatencyTestScreen(
         if (testActive) return
         
         testActive = true
+        showTestResults = false
         
         // 1. Измеряем время нажатия
         touchTimestamp = SystemClock.elapsedRealtimeNanos()
@@ -477,10 +497,13 @@ fun LatencyTestScreen(
                             updatePerformanceRating(averageLatency)
                         }
                         
+                        // Показываем результаты сразу
+                        showTestResults = true
+                        
                         // Задержка перед сбросом флага активного теста
                         handler.postDelayed({
                             testActive = false
-                        }, 500) // Задержка, чтобы предотвратить случайные двойные клики
+                        }, 200) // Минимальная задержка, чтобы предотвратить случайные двойные клики
                     }
                 }
             }
@@ -499,327 +522,336 @@ fun LatencyTestScreen(
         minLatency = 0
         maxLatency = 0
         performanceRating = ""
+        showTestResults = false
     }
     
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp)
-            .verticalScroll(scrollState),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        Text(
-            text = "Полный тест задержки нажатия",
-            fontSize = 24.sp,
-            fontWeight = FontWeight.Bold,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.padding(vertical = 16.dp)
-        )
-        
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(200.dp),
-            shape = RoundedCornerShape(16.dp)
-        ) {
-            Button(
-                onClick = { measureLatency() },
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        if (testActive) Color.Gray else MaterialTheme.colorScheme.primary
-                    ),
-                enabled = !testActive,
-                colors = ButtonDefaults.buttonColors(
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = {
+                    Text(
+                        text = "Тест задержки нажатия",
+                        style = MaterialTheme.typography.titleLarge
+                    )
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.primary,
-                    disabledContainerColor = Color.Gray
+                    titleContentColor = MaterialTheme.colorScheme.onPrimary
                 )
-            ) {
-                Text(
-                    text = if (testActive) "Измерение..." else "Нажмите для измерения задержки",
-                    fontSize = 18.sp,
-                    textAlign = TextAlign.Center
-                )
-            }
+            )
         }
-        
-        Spacer(modifier = Modifier.height(16.dp))
-        
-        // Информация об устройстве
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp)
+    ) { paddingValues ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+                .verticalScroll(scrollState)
+                .padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Column(
+            // Основная кнопка измерения с визуализацией результата
+            Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+                    .height(220.dp)
+                    .shadow(8.dp, RoundedCornerShape(16.dp))
             ) {
-                Text(
-                    text = "Информация об устройстве",
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(bottom = 8.dp)
-                )
-                
-                Divider(modifier = Modifier.padding(vertical = 8.dp))
-                
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Text(text = "Модель:", fontWeight = FontWeight.Medium)
-                    Text(text = deviceModel, fontWeight = FontWeight.Bold)
-                }
-                
-                Divider(modifier = Modifier.padding(vertical = 8.dp))
-                
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(text = "Версия:", fontWeight = FontWeight.Medium)
-                    Text(text = androidVersion, fontWeight = FontWeight.Bold)
-                }
-                
-                Divider(modifier = Modifier.padding(vertical = 8.dp))
-                
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(text = "Текущая частота экрана:", fontWeight = FontWeight.Medium)
-                    Text(text = "$currentRefreshRate Гц (${frameTime} мс/кадр)", fontWeight = FontWeight.Bold)
-                }
-                
-                if (maxRefreshRate > currentRefreshRate) {
-                    Divider(modifier = Modifier.padding(vertical = 8.dp))
+                    // Фон с градиентом
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(MaterialTheme.colorScheme.surface)
+                    )
                     
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.padding(16.dp)
                     ) {
-                        Text(text = "Максимальная частота:", fontWeight = FontWeight.Medium)
-                        Text(text = "$maxRefreshRate Гц", fontWeight = FontWeight.Bold)
+                        // Отображение результата
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(90.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (showTestResults) {
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    Text(
+                                        text = "$latency мс",
+                                        fontSize = 56.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = getPerformanceColor(latency)
+                                    )
+                                    
+                                    Text(
+                                        text = performanceRating,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
+                                        textAlign = TextAlign.Center
+                                    )
+                                }
+                            }
+                        }
+                        
+                        Spacer(modifier = Modifier.height(16.dp))
+                        
+                        // Кнопка запуска теста
+                        Button(
+                            onClick = { measureLatency() },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(56.dp),
+                            enabled = !testActive,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                disabledContainerColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.7f)
+                            ),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Warning,
+                                contentDescription = null,
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = if (testActive) "Измерение..." else "Нажмите для измерения",
+                                fontSize = 18.sp
+                            )
+                        }
                     }
                 }
-                
-                Divider(modifier = Modifier.padding(vertical = 8.dp))
-                
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
+            }
+            
+            // Информация об устройстве
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .shadow(4.dp, shape = RoundedCornerShape(16.dp)),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                )
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp)
                 ) {
-                    Text(text = "Частота опроса сенсора:", fontWeight = FontWeight.Medium)
-                    Text(
-                        text = "~${touchRateInfo.frequency.roundToInt()} Гц (~${touchRateInfo.pollTimeMs.roundToInt()} мс)",
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-                
-                Divider(modifier = Modifier.padding(vertical = 8.dp))
-                
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(text = "Тип сенсора:", fontWeight = FontWeight.Medium)
-                    Text(text = touchRateInfo.source, fontWeight = FontWeight.Bold)
-                }
-                
-                Divider(modifier = Modifier.padding(vertical = 8.dp))
-                
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(text = "Режим системы:", fontWeight = FontWeight.Medium)
-                    Text(text = powerModeDescription, fontWeight = FontWeight.Bold)
-                }
-                
-                if (systemPerformance.batteryLevel > 0) {
-                    Divider(modifier = Modifier.padding(vertical = 8.dp))
-                    
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(bottom = 8.dp)
                     ) {
-                        Text(text = "Заряд батареи:", fontWeight = FontWeight.Medium)
+                        Icon(
+                            imageVector = Icons.Outlined.Phone,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "${systemPerformance.batteryLevel}%" + 
-                                if (systemPerformance.isCharging) " (Заряжается)" else "",
-                            fontWeight = FontWeight.Bold
+                            text = "Информация об устройстве",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurface
                         )
                     }
+                    
+                    Divider(modifier = Modifier.padding(vertical = 8.dp))
+                    
+                    InfoRow(title = "Модель:", value = deviceModel)
+                    InfoRow(title = "Версия:", value = androidVersion)
+                    InfoRow(
+                        title = "Текущая частота экрана:",
+                        value = "$currentRefreshRate Гц (${frameTime} мс/кадр)"
+                    )
+                    
+                    if (maxRefreshRate > currentRefreshRate) {
+                        InfoRow(
+                            title = "Максимальная частота:",
+                            value = "$maxRefreshRate Гц"
+                        )
+                    }
+                    
+                    InfoRow(
+                        title = "Частота опроса сенсора:",
+                        value = "~${touchRateInfo.frequency.roundToInt()} Гц (~${touchRateInfo.pollTimeMs.roundToInt()} мс)"
+                    )
+                    
+                    // Извлекаем первое слово из полного описания типа сенсора
+                    val sensorTypeSimplified = when {
+                        touchRateInfo.source.contains("Игровое") -> "Игровой"
+                        touchRateInfo.source.contains("Флагманское") -> "Флагманский"
+                        touchRateInfo.source.contains("Современное") -> "Современный"
+                        touchRateInfo.source.contains("Стандартный") -> "Стандартный"
+                        touchRateInfo.source.contains("Android 9+") -> "Современный"
+                        else -> "Стандартный"
+                    }
+                    
+                    InfoRow(title = "Тип сенсора:", value = sensorTypeSimplified)
+                    InfoRow(title = "Режим системы:", value = powerModeDescription)
                 }
             }
-        }
-        
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp)
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text(
-                    text = "Детализация задержки",
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(bottom = 8.dp)
-                )
-                
-                Divider(modifier = Modifier.padding(vertical = 8.dp))
-                
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
+            
+            // Детализация задержки
+            if (latency > 0) {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .shadow(4.dp, shape = RoundedCornerShape(16.dp)),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surface
+                    )
                 ) {
-                    Text(text = "1. Сенсорный отклик:", fontWeight = FontWeight.Medium)
-                    Text(text = "$touchDetectionTime мс", fontWeight = FontWeight.Bold)
-                }
-                
-                Divider(modifier = Modifier.padding(vertical = 8.dp))
-                
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(text = "2. Ожидание vsync:", fontWeight = FontWeight.Medium)
-                    Text(text = "$vsyncWaitTime мс", fontWeight = FontWeight.Bold)
-                }
-                
-                Divider(modifier = Modifier.padding(vertical = 8.dp))
-                
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(text = "3. Обработка системой:", fontWeight = FontWeight.Medium)
-                    Text(text = "$osProcessingTime мс", fontWeight = FontWeight.Bold)
-                }
-                
-                Divider(modifier = Modifier.padding(vertical = 8.dp))
-                
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(text = "4. Рендеринг:", fontWeight = FontWeight.Medium)
-                    Text(text = "$renderingTime мс", fontWeight = FontWeight.Bold)
-                }
-                
-                Divider(modifier = Modifier.padding(vertical = 8.dp))
-                
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(text = "5. Обновление экрана:", fontWeight = FontWeight.Medium)
-                    Text(text = "$displayTime мс", fontWeight = FontWeight.Bold)
-                }
-                
-                Divider(modifier = Modifier.padding(vertical = 8.dp))
-                
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(text = "Общая задержка:", fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.primary)
-                    Text(text = "$latency мс", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                }
-                
-                if (performanceRating.isNotEmpty()) {
-                    Divider(modifier = Modifier.padding(vertical = 8.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp)
                     ) {
-                        Text(text = "Оценка:", fontWeight = FontWeight.Medium)
-                        Text(text = performanceRating, fontWeight = FontWeight.Bold)
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Settings,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Детализация задержки",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                        
+                        Divider(modifier = Modifier.padding(vertical = 8.dp))
+                        
+                        InfoRow(title = "1. Сенсорный отклик:", value = "$touchDetectionTime мс")
+                        InfoRow(title = "2. Ожидание vsync:", value = "$vsyncWaitTime мс")
+                        InfoRow(title = "3. Обработка системой:", value = "$osProcessingTime мс")
+                        InfoRow(title = "4. Рендеринг:", value = "$renderingTime мс")
+                        InfoRow(title = "5. Обновление экрана:", value = "$displayTime мс")
+                        
+                        Divider(modifier = Modifier.padding(vertical = 8.dp))
+                        
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Общая задержка:",
+                                fontWeight = FontWeight.Medium,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Text(
+                                text = "$latency мс",
+                                fontWeight = FontWeight.Bold,
+                                color = getPerformanceColor(latency)
+                            )
+                        }
                     }
                 }
             }
-        }
-        
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp)
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text(
-                    text = "Общая статистика",
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(bottom = 8.dp)
-                )
-                
-                Divider(modifier = Modifier.padding(vertical = 8.dp))
-                
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
+            
+            // Статистика
+            if (resultList.isNotEmpty()) {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .shadow(4.dp, shape = RoundedCornerShape(16.dp)),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surface
+                    )
                 ) {
-                    Text(text = "Среднее значение:", fontWeight = FontWeight.Medium)
-                    Text(text = "${averageLatency} мс", fontWeight = FontWeight.Bold)
-                }
-                
-                Divider(modifier = Modifier.padding(vertical = 8.dp))
-                
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(text = "Минимальное значение:", fontWeight = FontWeight.Medium)
-                    Text(text = "${minLatency} мс", fontWeight = FontWeight.Bold)
-                }
-                
-                Divider(modifier = Modifier.padding(vertical = 8.dp))
-                
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(text = "Максимальное значение:", fontWeight = FontWeight.Medium)
-                    Text(text = "${maxLatency} мс", fontWeight = FontWeight.Bold)
-                }
-                
-                Divider(modifier = Modifier.padding(vertical = 8.dp))
-                
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(text = "Количество тестов:", fontWeight = FontWeight.Medium)
-                    Text(text = "${resultList.size}", fontWeight = FontWeight.Bold)
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Info,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Общая статистика",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                        
+                        Divider(modifier = Modifier.padding(vertical = 8.dp))
+                        
+                        InfoRow(title = "Среднее значение:", value = "${averageLatency} мс")
+                        InfoRow(title = "Минимальное значение:", value = "${minLatency} мс")
+                        InfoRow(title = "Максимальное значение:", value = "${maxLatency} мс")
+                        InfoRow(title = "Количество тестов:", value = "${resultList.size}")
+                    }
                 }
             }
+            
+            // Кнопка сброса статистики
+            if (resultList.isNotEmpty()) {
+                OutlinedButton(
+                    onClick = { resetStats() },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Refresh,
+                        contentDescription = null
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Сбросить статистику")
+                }
+            }
+            
+            // Примечание
+            Text(
+                text = "Примечание: В компоненте \"Сенсорный отклик\" используется приблизительная оценка на основе модели устройства и версии Android, так как невозможно программно узнать точное время между физическим нажатием и регистрацией в системе.",
+                fontSize = 12.sp,
+                textAlign = TextAlign.Center,
+                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
+                modifier = Modifier.padding(vertical = 8.dp)
+            )
         }
-        
-        Spacer(modifier = Modifier.height(8.dp))
-        
-        Button(
-            onClick = { resetStats() },
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text("Сбросить статистику")
-        }
-        
+    }
+}
+
+@Composable
+fun InfoRow(title: String, value: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
         Text(
-            text = "Примечание: В компоненте \"Сенсорный отклик\" используется приблизительная оценка на основе модели устройства и версии Android, так как невозможно программно узнать точное время между физическим нажатием и регистрацией в системе.",
-            fontSize = 12.sp,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.padding(vertical = 8.dp)
+            text = title,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+        )
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodyMedium.copy(
+                fontWeight = FontWeight.Bold
+            ),
+            color = MaterialTheme.colorScheme.onSurface
         )
     }
 }

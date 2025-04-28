@@ -2,10 +2,25 @@ package com.example.androidlatency.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-val Purple80 = Color(0xFFD0BCFF)
-val PurpleGrey80 = Color(0xFFCCC2DC)
-val Pink80 = Color(0xFFEFB8C8)
+// Темная тема
+val DeepBlue = Color(0xFF0A2463)
+val AccentBlue = Color(0xFF3E92CC)
+val LightBlue = Color(0xFF8ECAE6)
 
-val Purple40 = Color(0xFF6650a4)
-val PurpleGrey40 = Color(0xFF625b71)
-val Pink40 = Color(0xFF7D5260)
+// Светлая тема
+val DarkBlue = Color(0xFF023E8A)
+val MediumBlue = Color(0xFF0077B6)
+val SkyBlue = Color(0xFF0096C7)
+
+// Акцентные цвета
+val Yellow = Color(0xFFFFC857)
+val Green = Color(0xFF06D6A0)
+val Red = Color(0xFFEF476F)
+val Orange = Color(0xFFFF9F1C)
+
+// Нейтральные цвета
+val DarkGray = Color(0xFF333333)
+val MediumGray = Color(0xFF666666) 
+val LightGray = Color(0xFFE0E0E0)
+val BackgroundLight = Color(0xFFF8F9FA)
+val BackgroundDark = Color(0xFF121212)
