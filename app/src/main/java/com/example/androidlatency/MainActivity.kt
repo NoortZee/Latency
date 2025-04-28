@@ -1,14 +1,19 @@
 package com.example.androidlatency
 
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.hardware.Sensor
 import android.hardware.SensorManager
 import android.hardware.input.InputManager
+import android.os.BatteryManager
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.os.PowerManager
 import android.os.SystemClock
+import android.provider.Settings
 import android.view.Choreographer
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
@@ -39,20 +44,52 @@ import kotlin.random.Random
 
 class MainActivity : ComponentActivity() {
     private var refreshRate = 60f
+    private var maxRefreshRate = 60f
+    private var minRefreshRate = 60f
     private var deviceModel = ""
     private var androidVersion = ""
     private var touchRateInfo = TouchRateInfo(100f, "Динамическая оценка")
+    private var isPowerSaveMode = false
+    private var isGameMode = false
+    private var systemPerformance = SystemPerformance()
     
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
-        // Получаем текущую частоту обновления дисплея
+        // Получаем текущую и максимальную частоту обновления дисплея
         val windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
         refreshRate = windowManager.defaultDisplay.refreshRate
+        
+        // На Android 11+ получаем дополнительную информацию о дисплее
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            val display = display
+            display?.let {
+                val mode = it.mode
+                refreshRate = mode.refreshRate
+                // Получаем максимальную поддерживаемую частоту обновления
+                val supportedModes = it.supportedModes
+                maxRefreshRate = supportedModes.maxOfOrNull { mode -> mode.refreshRate } ?: refreshRate
+                minRefreshRate = supportedModes.minOfOrNull { mode -> mode.refreshRate } ?: refreshRate
+            }
+        }
         
         // Получаем информацию об устройстве
         deviceModel = "${Build.MANUFACTURER} ${Build.MODEL}"
         androidVersion = "Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})"
+        
+        // Проверяем режим энергосбережения
+        val powerManager = getSystemService(POWER_SERVICE) as PowerManager
+        isPowerSaveMode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            powerManager.isPowerSaveMode
+        } else {
+            false
+        }
+        
+        // Определяем возможное наличие игрового режима (косвенно)
+        isGameMode = checkGameMode()
+        
+        // Собираем информацию о производительности системы
+        systemPerformance = collectSystemPerformance()
         
         // Оценка частоты опроса сенсора на основе модели устройства и версии Android
         touchRateInfo = estimateTouchRate(deviceModel, Build.VERSION.SDK_INT)
@@ -64,10 +101,92 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    LatencyTestScreen(refreshRate, deviceModel, androidVersion, touchRateInfo)
+                    LatencyTestScreen(
+                        refreshRate, 
+                        maxRefreshRate,
+                        deviceModel, 
+                        androidVersion, 
+                        touchRateInfo,
+                        systemPerformance
+                    )
                 }
             }
         }
+    }
+    
+    /**
+     * Собирает информацию о производительности системы
+     */
+    private fun collectSystemPerformance(): SystemPerformance {
+        // Проверяем уровень заряда батареи
+        val batteryStatus: Intent? = IntentFilter(Intent.ACTION_BATTERY_CHANGED).let { filter ->
+            this.registerReceiver(null, filter)
+        }
+        
+        val batteryLevel = batteryStatus?.let { intent ->
+            val level = intent.getIntExtra(BatteryManager.EXTRA_LEVEL, -1)
+            val scale = intent.getIntExtra(BatteryManager.EXTRA_SCALE, -1)
+            level * 100 / scale
+        } ?: -1
+        
+        // Проверяем, подключено ли зарядное устройство
+        val isCharging = batteryStatus?.let { intent ->
+            val status = intent.getIntExtra(BatteryManager.EXTRA_STATUS, -1)
+            status == BatteryManager.BATTERY_STATUS_CHARGING
+                    || status == BatteryManager.BATTERY_STATUS_FULL
+        } ?: false
+        
+        // Проверяем наличие режима пониженной производительности
+        val isReducedPerformance = Settings.Global.getInt(
+            contentResolver,
+            "low_power",
+            0
+        ) != 0 || isPowerSaveMode
+        
+        // Оцениваем общую производительность системы
+        val performanceLevel = when {
+            isGameMode -> PerformanceLevel.HIGH
+            isReducedPerformance -> PerformanceLevel.LOW
+            batteryLevel < 15 && !isCharging -> PerformanceLevel.LOW
+            batteryLevel < 50 && !isCharging -> PerformanceLevel.MEDIUM
+            else -> PerformanceLevel.NORMAL
+        }
+        
+        return SystemPerformance(
+            batteryLevel = batteryLevel,
+            isCharging = isCharging,
+            isPowerSaveMode = isPowerSaveMode,
+            isGameMode = isGameMode,
+            performanceLevel = performanceLevel
+        )
+    }
+    
+    /**
+     * Пытается определить, находится ли устройство в игровом режиме
+     * Это приблизительная оценка, поскольку нет стандартного API
+     */
+    private fun checkGameMode(): Boolean {
+        // Проверяем на Samsung Game Mode
+        val isSamsungGameMode = try {
+            val settingsGlobal = Settings.Global.getString(contentResolver, "game_home_enable")
+            settingsGlobal == "1"
+        } catch (e: Exception) {
+            false
+        }
+        
+        // Проверяем на MIUI Game Turbo
+        val isMiuiGameTurbo = try {
+            val settingsMiui = Settings.System.getString(contentResolver, "game_effect_enable")
+            settingsMiui == "1"
+        } catch (e: Exception) {
+            false
+        }
+        
+        // Проверяем наличие игрового режима OnePlus
+        val isOnePlusGameMode = deviceModel.lowercase().contains("oneplus") &&
+                Settings.System.getInt(contentResolver, "game_mode_enable", 0) != 0
+        
+        return isSamsungGameMode || isMiuiGameTurbo || isOnePlusGameMode
     }
     
     /**
@@ -95,44 +214,48 @@ class MainActivity : ComponentActivity() {
                         model.lowercase().contains("iphone")
         
         // Новые устройства имеют более высокую частоту опроса по сравнению со старыми
-        val hasHighRefreshScreen = refreshRate > 70f // Обычно устройства с >60 Гц имеют и более высокую частоту опроса сенсора
+        val hasHighRefreshScreen = maxRefreshRate > 70f // Обычно устройства с >60 Гц имеют и более высокую частоту опроса сенсора
         
         // На основе этих факторов определяем приблизительную частоту опроса
         return when {
             sdkVersion >= Build.VERSION_CODES.S && isGamingDevice -> {
-                // Игровые устройства на новых версиях Android
-                TouchRateInfo(
-                    frequency = 240f, 
-                    source = "Игровое устройство (≈240 Гц)"
-                )
+                // Игровые устройства на Android 12+
+                // Некоторые устройства поддерживают до 480 Гц для сенсора
+                if (maxRefreshRate >= 144f) { 
+                    TouchRateInfo(360f, "Игровое устройство c 144+ Гц (≈360 Гц)")
+                } else {
+                    TouchRateInfo(240f, "Игровое устройство (≈240 Гц)")
+                }
             }
             sdkVersion >= Build.VERSION_CODES.R && (isGamingDevice || (isFlagship && hasHighRefreshScreen)) -> {
                 // Флагманы с высокой частотой обновления экрана на Android 11+
-                TouchRateInfo(
-                    frequency = 180f, 
-                    source = "Флагманское устройство (≈180 Гц)"
-                )
+                if (maxRefreshRate >= 120f) {
+                    TouchRateInfo(240f, "Флагманское устройство 120+ Гц (≈240 Гц)")
+                } else if (maxRefreshRate >= 90f) {
+                    TouchRateInfo(180f, "Флагманское устройство 90+ Гц (≈180 Гц)")
+                } else {
+                    TouchRateInfo(120f, "Флагманское устройство (≈120 Гц)")
+                }
             }
             sdkVersion >= Build.VERSION_CODES.Q && (isFlagship || hasHighRefreshScreen) -> {
                 // Флагманы на Android 10+ или устройства с высокой частотой обновления
-                TouchRateInfo(
-                    frequency = 120f, 
-                    source = "Современное устройство (≈120 Гц)"
-                )
+                if (maxRefreshRate >= 90f) {
+                    TouchRateInfo(120f, "Современное устройство 90+ Гц (≈120 Гц)")
+                } else {
+                    TouchRateInfo(90f, "Современное устройство (≈90 Гц)")
+                }
+            }
+            sdkVersion >= Build.VERSION_CODES.P && hasHighRefreshScreen -> {
+                // Устройства на Android 9+ с повышенной частотой обновления
+                TouchRateInfo(90f, "Android 9+ с 90+ Гц экраном (≈90 Гц)")
             }
             sdkVersion >= Build.VERSION_CODES.P -> {
                 // Устройства на Android 9+
-                TouchRateInfo(
-                    frequency = 90f, 
-                    source = "Android 9+ (≈90 Гц)"
-                )
+                TouchRateInfo(90f, "Android 9+ (≈90 Гц)")
             }
             else -> {
                 // Старые устройства
-                TouchRateInfo(
-                    frequency = 60f, 
-                    source = "Стандартный сенсор (≈60 Гц)"
-                )
+                TouchRateInfo(60f, "Стандартный сенсор (≈60 Гц)")
             }
         }
     }
@@ -155,14 +278,57 @@ class MainActivity : ComponentActivity() {
             return (baseDelay + Random.nextFloat() * jitter - jitter/2).roundToInt().toLong()
         }
     }
+    
+    /**
+     * Перечисление уровней производительности системы
+     */
+    enum class PerformanceLevel {
+        LOW,     // Режим энергосбережения, низкий заряд батареи
+        MEDIUM,  // Стандартный режим с некоторыми ограничениями
+        NORMAL,  // Стандартный режим без ограничений
+        HIGH     // Игровой режим, повышенная производительность
+    }
+    
+    /**
+     * Класс для хранения информации о производительности системы
+     */
+    data class SystemPerformance(
+        val batteryLevel: Int = -1,
+        val isCharging: Boolean = false,
+        val isPowerSaveMode: Boolean = false,
+        val isGameMode: Boolean = false,
+        val performanceLevel: PerformanceLevel = PerformanceLevel.NORMAL
+    ) {
+        // Оценка влияния на производительность (множитель)
+        fun getPerformanceMultiplier(): Float {
+            return when (performanceLevel) {
+                PerformanceLevel.LOW -> 0.85f      // Снижение производительности в режиме экономии
+                PerformanceLevel.MEDIUM -> 0.95f   // Небольшое снижение при среднем режиме
+                PerformanceLevel.NORMAL -> 1.0f    // Нормальная производительность
+                PerformanceLevel.HIGH -> 1.05f     // Повышенная производительность в игровом режиме
+            }
+        }
+        
+        // Получение описания режима работы системы
+        fun getDescription(): String {
+            return when (performanceLevel) {
+                PerformanceLevel.LOW -> "Режим энергосбережения"
+                PerformanceLevel.MEDIUM -> "Стандартный режим"
+                PerformanceLevel.NORMAL -> "Оптимальный режим"
+                PerformanceLevel.HIGH -> "Режим повышенной производительности"
+            }
+        }
+    }
 }
 
 @Composable
 fun LatencyTestScreen(
     refreshRate: Float, 
+    maxRefreshRate: Float,
     deviceModel: String, 
     androidVersion: String, 
-    touchRateInfo: MainActivity.TouchRateInfo
+    touchRateInfo: MainActivity.TouchRateInfo,
+    systemPerformance: MainActivity.SystemPerformance
 ) {
     var testActive by remember { mutableStateOf(false) }
     var touchTimestamp by remember { mutableStateOf(0L) }
@@ -184,6 +350,11 @@ fun LatencyTestScreen(
     var maxLatency by remember { mutableStateOf(0L) }
     var frameTime by remember { mutableStateOf(0L) } // время одного кадра в мс
     var performanceRating by remember { mutableStateOf("") }
+    var currentRefreshRate by remember { mutableStateOf(refreshRate) }
+    
+    // Отслеживаем производительность
+    var performanceMultiplier by remember { mutableStateOf(systemPerformance.getPerformanceMultiplier()) }
+    var powerModeDescription by remember { mutableStateOf(systemPerformance.getDescription()) }
     
     val scrollState = rememberScrollState()
     val coroutineScope = rememberCoroutineScope()
@@ -191,8 +362,25 @@ fun LatencyTestScreen(
     val handler = Handler(Looper.getMainLooper())
     
     // Расчет времени одного кадра в миллисекундах
-    LaunchedEffect(refreshRate) {
-        frameTime = if (refreshRate > 0) (1000 / refreshRate).roundToInt().toLong() else 16
+    LaunchedEffect(refreshRate, systemPerformance.performanceLevel) {
+        // Корректируем частоту обновления с учетом режима энергосбережения
+        currentRefreshRate = if (systemPerformance.isPowerSaveMode && refreshRate > 60f) {
+            // В режиме энергосбережения многие устройства снижают частоту обновления экрана до 60 Гц
+            60f
+        } else {
+            refreshRate
+        }
+        
+        // Время одного кадра с поправкой на реальную частоту обновления
+        frameTime = if (currentRefreshRate > 0) {
+            (1000 / currentRefreshRate).roundToInt().toLong()
+        } else {
+            16 // Значение по умолчанию для 60 Гц
+        }
+        
+        // Обновляем множитель производительности при изменении режима
+        performanceMultiplier = systemPerformance.getPerformanceMultiplier()
+        powerModeDescription = systemPerformance.getDescription()
     }
     
     fun updatePerformanceRating(latencyValue: Long) {
@@ -219,6 +407,15 @@ fun LatencyTestScreen(
         // и регистрацией в системе невозможно
         touchDetectionTime = touchRateInfo.getRealisticDelayMs()
         
+        // Учитываем влияние режима производительности на сенсорный отклик
+        if (systemPerformance.isPowerSaveMode) {
+            // В режиме энергосбережения отклик сенсора может быть медленнее
+            touchDetectionTime = (touchDetectionTime * 1.2f).toLong()
+        } else if (systemPerformance.isGameMode) {
+            // В игровом режиме отклик сенсора может быть оптимизирован
+            touchDetectionTime = (touchDetectionTime * 0.9f).toLong()
+        }
+        
         val choreographer = Choreographer.getInstance()
         
         // 2. Получаем время ближайшего vsync события
@@ -235,14 +432,17 @@ fun LatencyTestScreen(
                 val processingTimestamp = SystemClock.elapsedRealtimeNanos()
                 
                 // Обработка системой - время между началом кадра и окончанием обработки события
+                // Здесь учитываем режим энергосбережения и загрузку системы
                 osProcessingTime = (processingTimestamp - frameTimestamp) / 1_000_000
+                osProcessingTime = (osProcessingTime * (1 / performanceMultiplier)).toLong()
                 
                 // 4. Измеряем время рендеринга и отображения
                 choreographer.postFrameCallback { _ ->
                     val renderingTimestamp = SystemClock.elapsedRealtimeNanos()
                     
-                    // Время рендеринга
+                    // Время рендеринга с учетом производительности системы
                     renderingTime = (renderingTimestamp - processingTimestamp) / 1_000_000
+                    renderingTime = (renderingTime * (1 / performanceMultiplier)).toLong()
                     
                     // 5. Время до фактического отображения на экране
                     // Здесь мы добавляем еще один callback для измерения полного времени обновления дисплея
@@ -255,9 +455,17 @@ fun LatencyTestScreen(
                         // Рассчитываем полную задержку от нажатия до отображения на экране
                         latency = touchDetectionTime + vsyncWaitTime + osProcessingTime + renderingTime + displayTime
                         
-                        // Для большей точности корректируем результат с учетом времени кадра
-                        if (latency > frameTime && displayTime > frameTime/2) {
-                            latency -= frameTime / 2
+                        // Применяем коррекцию в зависимости от частоты обновления
+                        if (currentRefreshRate >= 90f) {
+                            // Для дисплеев с высокой частотой обновления (90-144 Гц)
+                            if (latency > frameTime && displayTime > frameTime/2) {
+                                latency -= frameTime / 3 // Коррекция для высокой частоты обновления
+                            }
+                        } else {
+                            // Стандартная коррекция для 60 Гц дисплеев
+                            if (latency > frameTime && displayTime > frameTime/2) {
+                                latency -= frameTime / 2
+                            }
                         }
                         
                         resultList = resultList + latency
@@ -382,8 +590,20 @@ fun LatencyTestScreen(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Text(text = "Частота обновления:", fontWeight = FontWeight.Medium)
-                    Text(text = "$refreshRate Гц (${frameTime} мс/кадр)", fontWeight = FontWeight.Bold)
+                    Text(text = "Текущая частота экрана:", fontWeight = FontWeight.Medium)
+                    Text(text = "$currentRefreshRate Гц (${frameTime} мс/кадр)", fontWeight = FontWeight.Bold)
+                }
+                
+                if (maxRefreshRate > currentRefreshRate) {
+                    Divider(modifier = Modifier.padding(vertical = 8.dp))
+                    
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(text = "Максимальная частота:", fontWeight = FontWeight.Medium)
+                        Text(text = "$maxRefreshRate Гц", fontWeight = FontWeight.Bold)
+                    }
                 }
                 
                 Divider(modifier = Modifier.padding(vertical = 8.dp))
@@ -405,8 +625,34 @@ fun LatencyTestScreen(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Text(text = "Определено как:", fontWeight = FontWeight.Medium)
+                    Text(text = "Тип сенсора:", fontWeight = FontWeight.Medium)
                     Text(text = touchRateInfo.source, fontWeight = FontWeight.Bold)
+                }
+                
+                Divider(modifier = Modifier.padding(vertical = 8.dp))
+                
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(text = "Режим системы:", fontWeight = FontWeight.Medium)
+                    Text(text = powerModeDescription, fontWeight = FontWeight.Bold)
+                }
+                
+                if (systemPerformance.batteryLevel > 0) {
+                    Divider(modifier = Modifier.padding(vertical = 8.dp))
+                    
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(text = "Заряд батареи:", fontWeight = FontWeight.Medium)
+                        Text(
+                            text = "${systemPerformance.batteryLevel}%" + 
+                                if (systemPerformance.isCharging) " (Заряжается)" else "",
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                 }
             }
         }
