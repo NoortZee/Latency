@@ -1,8 +1,11 @@
 package com.example.androidlatency
 
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.os.SystemClock
 import android.view.Choreographer
+import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -22,10 +25,18 @@ import androidx.compose.ui.unit.sp
 import com.example.androidlatency.ui.theme.AndroidLatencyTheme
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 
 class MainActivity : ComponentActivity() {
+    private var refreshRate = 60f
+    
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        
+        // Получаем текущую частоту обновления дисплея
+        val windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
+        refreshRate = windowManager.defaultDisplay.refreshRate
+        
         enableEdgeToEdge()
         setContent {
             AndroidLatencyTheme {
@@ -33,7 +44,7 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    LatencyTestScreen()
+                    LatencyTestScreen(refreshRate)
                 }
             }
         }
@@ -41,40 +52,69 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun LatencyTestScreen() {
+fun LatencyTestScreen(refreshRate: Float) {
     var testActive by remember { mutableStateOf(false) }
     var touchTimestamp by remember { mutableStateOf(0L) }
     var frameTimestamp by remember { mutableStateOf(0L) }
+    var vsyncTimestamp by remember { mutableStateOf(0L) }
+    var displayTimestamp by remember { mutableStateOf(0L) }
     var latency by remember { mutableStateOf(0L) }
     var resultList by remember { mutableStateOf(listOf<Long>()) }
     var averageLatency by remember { mutableStateOf(0L) }
     var minLatency by remember { mutableStateOf(0L) }
     var maxLatency by remember { mutableStateOf(0L) }
+    var frameTime by remember { mutableStateOf(0L) } // время одного кадра в мс
     
     val coroutineScope = rememberCoroutineScope()
     val context = LocalContext.current
+    val handler = Handler(Looper.getMainLooper())
+    
+    // Расчет времени одного кадра в миллисекундах
+    LaunchedEffect(refreshRate) {
+        frameTime = if (refreshRate > 0) (1000 / refreshRate).roundToInt().toLong() else 16
+    }
     
     fun measureLatency() {
         if (testActive) return
         
         testActive = true
+        // Измеряем время нажатия
         touchTimestamp = SystemClock.elapsedRealtimeNanos()
         
-        Choreographer.getInstance().postFrameCallback { 
+        val choreographer = Choreographer.getInstance()
+        
+        // Получаем время ближайшего vsync события
+        choreographer.postFrameCallback { frameTimeNanos ->
+            vsyncTimestamp = frameTimeNanos
             frameTimestamp = SystemClock.elapsedRealtimeNanos()
-            latency = (frameTimestamp - touchTimestamp) / 1_000_000 // Convert to milliseconds
             
-            resultList = resultList + latency
-            
-            if (resultList.isNotEmpty()) {
-                averageLatency = resultList.average().toLong()
-                minLatency = resultList.minOrNull() ?: 0
-                maxLatency = resultList.maxOrNull() ?: 0
-            }
-            
-            coroutineScope.launch {
-                delay(500) // Delay to prevent accidental double-taps
-                testActive = false
+            // Добавляем еще одно измерение через два кадра для учета реального времени отображения на экране
+            choreographer.postFrameCallback { _ ->
+                choreographer.postFrameCallback { _ ->
+                    displayTimestamp = SystemClock.elapsedRealtimeNanos()
+                    
+                    // Рассчитываем полную задержку от нажатия до отображения на экране
+                    // Включая время ожидания следующего vsync + время рендеринга + время до физического обновления дисплея
+                    latency = (displayTimestamp - touchTimestamp) / 1_000_000
+                    
+                    // Для большей точности вычитаем один кадр (т.к. отображение произошло в начале последнего кадра)
+                    if (latency > frameTime) {
+                        latency -= frameTime / 2
+                    }
+                    
+                    resultList = resultList + latency
+                    
+                    if (resultList.isNotEmpty()) {
+                        averageLatency = resultList.average().toLong()
+                        minLatency = resultList.minOrNull() ?: 0
+                        maxLatency = resultList.maxOrNull() ?: 0
+                    }
+                    
+                    // Задержка перед сбросом флага активного теста
+                    handler.postDelayed({
+                        testActive = false
+                    }, 500) // Задержка, чтобы предотвратить случайные двойные клики
+                }
             }
         }
     }
@@ -147,6 +187,16 @@ fun LatencyTestScreen() {
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(bottom = 8.dp)
                 )
+                
+                Divider(modifier = Modifier.padding(vertical = 8.dp))
+                
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(text = "Частота обновления:", fontWeight = FontWeight.Medium)
+                    Text(text = "$refreshRate Гц", fontWeight = FontWeight.Bold)
+                }
                 
                 Divider(modifier = Modifier.padding(vertical = 8.dp))
                 
