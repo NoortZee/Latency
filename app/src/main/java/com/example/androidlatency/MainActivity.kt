@@ -22,6 +22,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -512,13 +513,19 @@ fun LatencyTestScreen(
                 },
                 actions = {
                     IconButton(onClick = { 
-                        // Сбрасываем статистику
+                        // Сбрасываем статистику полностью
                         resultList = emptyList()
                         averageLatency = 0
                         minLatency = 0
                         maxLatency = 0
                         latency = 0
+                        touchDetectionTime = 0
+                        vsyncWaitTime = 0
+                        osProcessingTime = 0
+                        renderingTime = 0
+                        displayTime = 0
                         performanceRating = ""
+                        showTestResults = false
                     }) {
                         Icon(Icons.Default.Refresh, contentDescription = stringResource(R.string.reset_statistics))
                     }
@@ -543,10 +550,11 @@ fun LatencyTestScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .aspectRatio(1.6f)
-                        .background(MaterialTheme.colorScheme.primaryContainer),
-                    contentAlignment = Alignment.Center
+                        .background(MaterialTheme.colorScheme.primaryContainer)
                 ) {
+                    // Показываем основной результат в центре
                     Column(
+                        modifier = Modifier.align(Alignment.Center),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         if (showTestResults) {
@@ -560,6 +568,28 @@ fun LatencyTestScreen(
                                 text = performanceRating,
                                 fontSize = 16.sp,
                                 color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        }
+                    }
+
+                    // Круглый счетчик наподобие бейджа
+                    if (showTestResults && resultList.isNotEmpty()) {
+                        Box(
+                            modifier = Modifier
+                                .size(28.dp)
+                                .align(Alignment.TopEnd)
+                                .offset(x = (-10).dp, y = 10.dp)
+                                .background(
+                                    color = Color(0xFFD32F2F),
+                                    shape = CircleShape
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "${resultList.size}",
+                                color = Color.White,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
                             )
                         }
                     }
@@ -687,7 +717,7 @@ fun LatencyTestScreen(
                 }
                 
                 // Статистика по прошлым тестам
-                if (resultList.size > 1) {
+                if (resultList.size > 0) {
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -709,10 +739,19 @@ fun LatencyTestScreen(
                             
                             TextButton(
                                 onClick = {
+                                    // Полный сброс всех значений статистики
                                     resultList = emptyList()
                                     averageLatency = 0
                                     minLatency = 0
                                     maxLatency = 0
+                                    latency = 0
+                                    touchDetectionTime = 0
+                                    vsyncWaitTime = 0
+                                    osProcessingTime = 0
+                                    renderingTime = 0
+                                    displayTime = 0
+                                    performanceRating = ""
+                                    showTestResults = false
                                 }, 
                                 modifier = Modifier.align(Alignment.End)
                             ) {
